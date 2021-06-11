@@ -1,0 +1,211 @@
+---
+title: "Tutorial"
+author: "Pallav Routh"
+date: "6/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,message = FALSE, warning = FALSE)
+library(dplyr)
+library(readr)
+library(readxl)
+```
+
+1. Importing the data
+
+```{r}
+orders <- read_csv("Olist Ecom Proj/orders.csv")
+glimpse(orders)
+```
+
+We see that date columns are charaters. Need to coerse to date format in R. Type coersion issue.
+
+```{r}
+orders |> 
+  mutate(order_purchase_dt = as.Date(order_purchase_dt, format = "%m/%d/%y")) %>%
+  select(order_id,order_purchase_dt)
+
+# But we have multiple columns for which we need to apply the same function
+# use a shortcut
+
+orders_p <-
+  orders |> 
+    mutate(order_purchase_dt = as.Date(order_purchase_dt, format = "%m/%d/%y"),
+           order_approved_at_dt = as.Date(order_approved_at_dt, format = "%m/%d/%y"),
+           order_delivered_carrier_dt = as.Date(order_delivered_carrier_dt, format = "%m/%d/%y"),
+           order_delivered_customer_dt = as.Date(order_delivered_customer_dt, format = "%m/%d/%y"),
+           order_estimated_delivery_dt = as.Date(order_estimated_delivery_dt, format = "%m/%d/%y"))
+
+#excercise
+#orders_p <-
+  #orders %>%
+    #mutate(across(.cols = contains("dt"),.fns = ~ as.Date(.x, format = "%m/%d/%y"))) 
+# alternatively you can also use the names within c()
+
+glimpse(orders_p)
+```
+
+
+Lets import the other data sets
+
+```{r}
+order_items <- read_csv("Olist Ecom Proj/order_item.csv")
+glimpse(order_items)
+
+order_items_p <-
+  order_items |> 
+  select(order_id,order_item_id,product_id,seller_id,price,fvalue)
+glimpse(orders_p)
+
+reviews <- read_csv("Olist Ecom Proj/reviews.csv")
+glimpse(reviews)
+
+reviews_p <-
+  reviews |> 
+  mutate(review_crt_dt = as.Date(review_crt_dt, format = "%m/%d/%y"))
+glimpse(reviews_p)
+
+products <- read_csv("Olist Ecom Proj/products.csv")
+glimpse(products)
+
+customers <- read_csv("Olist Ecom Proj/customers.csv")
+glimpse(customers)
+
+sellers <- read_excel("Olist Ecom Proj/sellers.xlsx",
+                      col_types = c("text", "numeric", "text", "text"))
+glimpse(sellers)
+```
+
+
+2. Lets merge these data sets
+
+```{r}
+# whenever left joining ask yourself - can multiple records exist for a single value of the key in the RHS data -- inspect. Typically check for any unique identifier type variable
+# for example can multiple customers exist for a single order ID? If yes, then the total number of rows after you join should go up. But this is likely false
+
+orders_p |> 
+  filter(!is.na(order_id)) |> 
+  group_by(order_id) |> 
+    summarise(nobs = n_distinct(customer_id)) %>%
+  ungroup() |> 
+  filter(nobs > 1)
+
+# so then this merge shouldn't create additional rows
+
+merged_data <-
+  order_items_p |> 
+  left_join(orders_p,"order_id")
+
+# indeed
+# next reviews data 
+# can one order ID have multiple reviews? Yes. An order ID can have multiple items. Each item will have one review ID
+
+merged_data <-
+  order_items_p |> 
+  left_join(orders_p,"order_id") |> 
+  left_join(reviews_p,"order_id") 
+
+reviews_p %>%
+  group_by(order_id) |> 
+    summarise(nrev = n_distinct(review_id)) |> 
+  ungroup() |> 
+  filter(nrev > 1)
+
+# indeed
+# carry on
+
+merged_data <-
+  order_items_p %>%
+  left_join(orders_p,"order_id") |> 
+  left_join(reviews_p,"order_id") |> 
+  left_join(sellers,"seller_id")
+
+#another common issue with joins -- type incompitibility with joining keys -- see msg and adjust
+
+merged_data <-
+  order_items_p %>%
+  left_join(orders_p,"order_id") |> 
+  left_join(reviews_p,"order_id") |> 
+  left_join(sellers |> 
+              mutate(seller_id = as.numeric(seller_id)),"seller_id") %>%
+  left_join(customers,"customer_id") |> 
+  left_join(products,"product_id")
+```
+
+
+We have the final data. Further inspections.
+Missing variables
+
+```{r}
+colSums(is.na(merged_data))
+
+# I do not wish to deal with rows where the delivery date to customers are missing
+# or order approval date is missing
+# or product description is missing
+
+merged_data_v2 <-
+  merged_data |> 
+    filter(!is.na(order_delivered_customer_dt)) |> 
+    filter(!is.na(order_approved_at_dt)) |> 
+    filter(!is.na(product_category_name)) |> 
+    select(-review_comm_title,-review_comm_msg)
+
+colSums(is.na(merged_data_v2))
+```
+
+
+In a position to create variables
+
+North States: Acre (AC), Amapá (AP), Amazonas (AM), Pará (PA), Rondônia (RO), Roraima (RR), Tocantins (TO)
+
+South States: Espírito Santo (ES), Minas Gerais (MG), Rio de Janeiro (RJ), São Paulo (SP), Paraná (PR), Rio Grande do Sul (RS), Santa Catarina (SC)
+
+```{r}
+north <- c("AC","AP","AM","PA","RO","RR","TO")
+south <- c("ES","MG","RJ","SP","PR","RS","SC")
+
+estimation_data <-
+  merged_data_v2 |> 
+  arrange(seller_id,order_purchase_dt) |> 
+  mutate(delivary_time = order_delivered_customer_dt - order_purchase_dt,
+         approval_time = order_approved_at_dt - order_purchase_dt,
+         product_height_m = product_height_cm/1000,
+         product_weight_lb = product_weight_g/454,
+         product_length_m = product_length_cm/1000,
+         product_width_m = product_width_cm/1000,
+         stateloc = case_when(customer_state %in% north ~ "north",
+                              customer_state %in% south ~ "south",
+                              TRUE ~ "others")) 
+
+# seller business size
+estimation_data |> 
+  group_by(seller_id) |> 
+    summarise(customersize = n_distinct(customer_id),
+              productsize = n_distinct(product_id)) |> 
+  ungroup()
+
+# seller competition in a state
+estimation_data |> 
+  group_by(seller_state) |> 
+    summarise(sellersize = n_distinct(seller_id)) |> 
+  ungroup()
+
+# seller competition in category
+estimation_data |> 
+  group_by(product_category_name) |> 
+    summarise(sellersize = n_distinct(seller_id)) |> 
+  ungroup()
+
+# dummies for state location of customer reviews
+sjmisc::to_dummy(estimation_data$stateloc)
+
+# review scores have some contagion
+estimation_data |> 
+  select(seller_id,product_category_name,order_approved_at_dt,review_score) |> 
+  arrange(seller_id,order_approved_at_dt) |> 
+  group_by(seller_id,product_category_name) |>
+    mutate(lagrevscore = lag(review_score)) |> 
+  ungroup()
+```
+
