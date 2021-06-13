@@ -263,3 +263,30 @@ estimation_data <-
 
 ```
 
+Not everything is possible with Dplyr
+
+```{r}
+cluster_data <-
+  merged_data_v2 |> 
+  select(product_weight_g,product_length_cm,product_height_cm,product_width_cm)
+
+cluster_data_sc <- scale(na.omit(cluster_data))
+cluster_mod <- kmeans(cluster_data_sc, 3)
+clusters <- cluster_mod$cluster
+
+clusters[1:10]
+length(clusters)
+nrow(cluster_data)
+
+clusters_info <-
+  merged_data_v2 |> 
+  select(product_weight_g,product_length_cm,product_height_cm,product_width_cm) |> 
+  na.omit() |> 
+  mutate(clusters = clusters) |> 
+  select(order_id,clusters)
+
+estimation_data2 <-
+  estimation_data |> 
+  left_join(clusters_info,"order_id")
+```
+
