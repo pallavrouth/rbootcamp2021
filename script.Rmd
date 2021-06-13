@@ -10,12 +10,13 @@ knitr::opts_chunk$set(echo = TRUE,message = FALSE, warning = FALSE)
 library(dplyr)
 library(readr)
 library(readxl)
+library(tidyr)
 ```
 
 1. Importing the data
 
 ```{r}
-orders <- read_csv("Olist Ecom Proj/orders.csv")
+orders <- read_csv("~/Dropbox/Teaching/R bootcamp/Olist Ecom Proj/orders.csv")
 glimpse(orders)
 ```
 
@@ -50,7 +51,7 @@ glimpse(orders_p)
 Lets import the other data sets
 
 ```{r}
-order_items <- read_csv("Olist Ecom Proj/order_item.csv")
+order_items <- read_csv("~/Dropbox/Teaching/R bootcamp/Olist Ecom Proj/order_item.csv")
 glimpse(order_items)
 
 order_items_p <-
@@ -58,7 +59,7 @@ order_items_p <-
   select(order_id,order_item_id,product_id,seller_id,price,fvalue)
 glimpse(orders_p)
 
-reviews <- read_csv("Olist Ecom Proj/reviews.csv")
+reviews <- read_csv("~/Dropbox/Teaching/R bootcamp/Olist Ecom Proj/reviews.csv")
 glimpse(reviews)
 
 reviews_p <-
@@ -66,13 +67,13 @@ reviews_p <-
   mutate(review_crt_dt = as.Date(review_crt_dt, format = "%m/%d/%y"))
 glimpse(reviews_p)
 
-products <- read_csv("Olist Ecom Proj/products.csv")
+products <- read_csv("~/Dropbox/Teaching/R bootcamp/Olist Ecom Proj/products.csv")
 glimpse(products)
 
-customers <- read_csv("Olist Ecom Proj/customers.csv")
+customers <- read_csv("~/Dropbox/Teaching/R bootcamp/Olist Ecom Proj/customers.csv")
 glimpse(customers)
 
-sellers <- read_excel("Olist Ecom Proj/sellers.xlsx",
+sellers <- read_excel("~/Dropbox/Teaching/R bootcamp/Olist Ecom Proj/sellers.xlsx",
                       col_types = c("text", "numeric", "text", "text"))
 glimpse(sellers)
 ```
@@ -200,6 +201,12 @@ estimation_data |>
 # dummies for state location of customer reviews
 sjmisc::to_dummy(estimation_data$stateloc)
 
+estimation_data |> 
+  select(stateloc) |> 
+  mutate(row_no = 1:n(),
+         indicator = 1) |> 
+  pivot_wider(names_from = stateloc, values_from = indicator, values_fill = 0)
+
 # review scores have some contagion
 estimation_data |> 
   select(seller_id,product_category_name,order_approved_at_dt,review_score) |> 
@@ -207,5 +214,52 @@ estimation_data |>
   group_by(seller_id,product_category_name) |>
     mutate(lagrevscore = lag(review_score)) |> 
   ungroup()
+
+#customers propensity to provide scores in a region
+estimation_data |>
+  group_by(customer_state) |> 
+    summarise(avgrevscore = mean(review_score,na.rm = T)) |> 
+  ungroup()
+```
+
+Add these variables to estimation data
+
+```{r}
+estimation_data <-
+  merged_data_v2 |> 
+  arrange(seller_id,order_purchase_dt) |> 
+  mutate(delivary_time = order_delivered_customer_dt - order_purchase_dt,
+         approval_time = order_approved_at_dt - order_purchase_dt,
+         product_height_m = product_height_cm/1000,
+         product_weight_lb = product_weight_g/454,
+         product_length_m = product_length_cm/1000,
+         product_width_m = product_width_cm/1000,
+         stateloc = case_when(customer_state %in% north ~ "north",
+                              customer_state %in% south ~ "south",
+                              TRUE ~ "others")) |> 
+  group_by(seller_id) |> 
+    mutate(customersize = n_distinct(customer_id),
+           productsize = n_distinct(product_id)) |> 
+  ungroup() |> 
+  group_by(seller_state) |> 
+    mutate(sellersize = n_distinct(seller_id)) |> 
+  ungroup() |> 
+  group_by(product_category_name) |> 
+    mutate(sellersize = n_distinct(seller_id)) |> 
+  ungroup() |> 
+  arrange(seller_id,order_approved_at_dt) |> 
+  group_by(seller_id,product_category_name) |>
+    mutate(lagrevscore = lag(review_score)) |> 
+  ungroup() |> 
+  group_by(customer_state) |> 
+    mutate(avgrevscore = mean(review_score,na.rm = T)) |> 
+  ungroup() |> 
+  mutate(row_no = 1:n(),
+         indicator = 1) |> 
+  pivot_wider(names_from = stateloc, values_from = indicator, values_fill = 0) |> 
+  select(seller_id,order_purchase_dt,order_id,product_id,review_score,
+         product_name_lenght:avgrevscore,north,south) |> 
+  arrange(seller_id,order_id)
+
 ```
 
