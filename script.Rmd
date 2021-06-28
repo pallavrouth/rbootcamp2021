@@ -136,7 +136,7 @@ merged_data <-
 
 
 We have the final data. Further inspections.
-Missing variables
+Missing variables/renaming variables
 
 ```{r}
 colSums(is.na(merged_data))
@@ -150,7 +150,9 @@ merged_data_v2 <-
     filter(!is.na(order_delivered_customer_dt)) |> 
     filter(!is.na(order_approved_at_dt)) |> 
     filter(!is.na(product_category_name)) |> 
-    select(-review_comm_title,-review_comm_msg)
+    select(-review_comm_title,-review_comm_msg) |> 
+    rename("product_name_length" = "product_name_lenght",
+           "product_description_length" = "product_description_lenght")
 
 colSums(is.na(merged_data_v2))
 ```
@@ -177,7 +179,9 @@ estimation_data <-
          product_width_m = product_width_cm/1000,
          stateloc = case_when(customer_state %in% north ~ "north",
                               customer_state %in% south ~ "south",
-                              TRUE ~ "others")) 
+                              TRUE ~ "others"),
+         photos = case_when(product_photos_qty > 5 ~ "greater than 5",
+                            TRUE ~ as.character(product_photos_qty))) 
 
 # seller business size
 estimation_data |> 
@@ -236,7 +240,9 @@ estimation_data <-
          product_width_m = product_width_cm/1000,
          stateloc = case_when(customer_state %in% north ~ "north",
                               customer_state %in% south ~ "south",
-                              TRUE ~ "others")) |> 
+                              TRUE ~ "others"),
+         photos = case_when(product_photos_qty > 5 ~ "greater than 5",
+                            TRUE ~ as.character(product_photos_qty))) |> 
   group_by(seller_id) |> 
     mutate(customersize = n_distinct(customer_id),
            productsize = n_distinct(product_id)) |> 
@@ -258,35 +264,21 @@ estimation_data <-
          indicator = 1) |> 
   pivot_wider(names_from = stateloc, values_from = indicator, values_fill = 0) |> 
   select(seller_id,order_purchase_dt,order_id,product_id,review_score,
-         product_name_lenght:avgrevscore,north,south) |> 
+         product_name_length:avgrevscore,north,south) |> 
   arrange(seller_id,order_id)
 
 ```
 
-Not everything is possible with Dplyr
+Data visualization
 
 ```{r}
-cluster_data <-
-  merged_data_v2 |> 
-  select(product_weight_g,product_length_cm,product_height_cm,product_width_cm)
 
-cluster_data_sc <- scale(na.omit(cluster_data))
-cluster_mod <- kmeans(cluster_data_sc, 3)
-clusters <- cluster_mod$cluster
-
-clusters[1:10]
-length(clusters)
-nrow(cluster_data)
-
-clusters_info <-
-  merged_data_v2 |> 
-  select(product_weight_g,product_length_cm,product_height_cm,product_width_cm) |> 
-  na.omit() |> 
-  mutate(clusters = clusters) |> 
-  select(order_id,clusters)
-
-estimation_data2 <-
-  estimation_data |> 
-  left_join(clusters_info,"order_id")
 ```
 
+1. Same background (PPT + Zoom)
+2. Quick intro to layout
+3. Using markdown (~30)
+4. Viz at the end (using final variables)
+5. Agenda = lecture objectives
+6. Intro slide for yourself
+7. By end of month
