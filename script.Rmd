@@ -152,7 +152,19 @@ merged_data_v2 <-
     filter(!is.na(product_category_name)) |> 
     select(-review_comm_title,-review_comm_msg) |> 
     rename("product_name_length" = "product_name_lenght",
-           "product_description_length" = "product_description_lenght")
+           "product_description_length" = "product_description_lenght") 
+
+colSums(is.na(merged_data_v2))
+
+merged_data_v2 <-
+  merged_data |> 
+    filter(!is.na(order_delivered_customer_dt)) |> 
+    filter(!is.na(order_approved_at_dt)) |> 
+    filter(!is.na(product_category_name)) |> 
+    select(-review_comm_title,-review_comm_msg) |> 
+    rename("product_name_length" = "product_name_lenght",
+           "product_description_length" = "product_description_lenght") |> 
+    na.omit()
 
 colSums(is.na(merged_data_v2))
 ```
@@ -265,15 +277,77 @@ estimation_data <-
   pivot_wider(names_from = stateloc, values_from = indicator, values_fill = 0) |> 
   select(seller_id,order_purchase_dt,order_id,product_id,review_score,
          product_name_length:avgrevscore,north,south) |> 
-  arrange(seller_id,order_id)
+  arrange(seller_id,order_id) |> 
+  #type coersion
+  mutate(delivary_time = as.numeric(delivary_time),
+         approval_time = as.numeric(approval_time),
+         photos = as.factor(photos),
+         north = as.factor(north),
+         south = as.factor(south)) 
+```
 
+
+Post data wrangling checks
+
+Distributions, summary metrics and correlations
+
+```{r}
+estimation_data |> 
+  select(review_score:south) |> 
+  summary()
+
+colnames <- names(estimation_data)
+independent_variables <- colnames[!(colnames %in% c("seller_id","order_purchase_dt",
+                                                    "order_id","product_id"))]
+
+plot_distribution <- function(x){
+  data_plot <- estimation_data[,x]
+  if (sapply(data_plot[,x],class) != "factor"){
+    ggplot(data_plot,aes_string(x)) + geom_density(fill = "grey",col = "black")
+  } else {
+    ggplot(data_plot,aes_string(x)) + geom_bar(fill = "grey",col = "black")
+  }
+}
+
+for (i in seq_along(independent_variables)){
+  print(plot_distribution(independent_variables[i]))
+}
+
+
+sapply(estimation_data,is.numeric) == TRUE
+estimation_data[,sapply(estimation_data,is.numeric) == TRUE]
+estimation_data[,sapply(estimation_data,is.numeric) == TRUE & colnames %in% independent_variables]
+cor(estimation_data[,sapply(estimation_data,is.numeric) == TRUE & colnames %in% independent_variables])
 ```
 
 Data visualization
 
-```{r}
+1. Scatter plots
 
+```{r}
+estimation_data |>
+  ggplot(aes(x = review_score, y = product_name_length)) +
+    geom_point()
+
+estimation_data |>
+  ggplot(aes(x = review_score, y = product_name_length)) +
+    geom_jitter(size = 0.1, alpha = 0.1)
 ```
+Box plots
+
+```{r}
+estimation_data |>
+  ggplot(aes(x = review_score, y = product_name_length)) +
+    geom_boxplot()
+
+estimation_data |>
+  ggplot(aes(x = as.factor(review_score), y = product_name_length)) +
+    geom_boxplot()
+```
+
+
+
+
 
 1. Same background (PPT + Zoom)
 2. Quick intro to layout

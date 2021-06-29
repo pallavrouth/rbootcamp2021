@@ -1,0 +1,48 @@
+---
+title: "My first HTML"
+author: "Pallav Routh"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    #toc: TRUE
+    #toc_depth: 2
+    #toc_float: 
+      #collapsed: TRUE
+    number_sections: FALSE
+    #theme: spacelab
+    css: "custom.css"
+---
+
+# First title 
+
+Resources :  
+- https://github.com/rstudio/markdown/blob/master/inst/resources/markdown.css  
+- https://yihui.org/knitr/options/  
+- https://bookdown.org/yihui/rmarkdown-cookbook/html-hardcore.html
+- https://rmarkdown.rstudio.com/authoring_basics.html
+
+### First subtitle 
+
+
+# Second title 
+
+### Some tabbed results {.tabset}
+
+#### First tab
+
+#### Second tab
+
+### {-}
+
+### Some untabbed results
+
+# Codes
+
+```{r}
+summary(mtcars)
+```
+
+
+
+
+
