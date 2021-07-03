@@ -51,7 +51,7 @@ Lets view this object now. Fantastic. Quick and easy. You can use this framework
 Lets view the contents of any file. I find the `glimpse` function quite neat.
 
 ```{r}
-glimpse(all_files[['orders.csv']])
+dplyr::glimpse(all_files[['orders.csv']])
 ```
 
 It gives us the types of each variable in the data. This information will be useful to you later on for when it comes to pre processing. For example the date variables are listed as character variables. That's a mistake which needs to be fixed. 

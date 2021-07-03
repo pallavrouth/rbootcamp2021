@@ -1,0 +1,149 @@
+---
+title: "Merging data"
+author: "Pallav Routh"
+date: "7/2/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,message = FALSE, warning = FALSE)
+```
+
+Now we will try to merge all available information into one master data set. Again we will rely on dplyr
+
+```{r}
+library(dplyr)
+```
+
+First we will need to ID variable we can merge on. 
+
+There is no specific order which one can follow to merge multiple files. But, I always like to start with the largest file. So lets try to merge order and order items.
+
+What are variables we can merge on?
+
+```{r}
+names(p_orderitems)
+```
+
+```{r}
+names(p_orders)
+```
+We can use order ID. We can join p_orderitems from the left of orders.
+
+Whenever left joining ask yourself - can multiple records exist for a single value of the key in the RHS data inspect. Typically check for any unique identifier type variable. For example can multiple customers exist for a single order ID? If yes, then the total number of rows after you join should go up. But this is likely false.
+
+```{r}
+p_orders |> 
+  filter(!is.na(order_id)) |> 
+  group_by(order_id) |> 
+    summarise(nobs = n_distinct(customer_id)) %>%
+  ungroup() |> 
+  filter(nobs > 1)
+```
+
+So then this merge shouldn't create additional rows. 
+
+```{r}
+merged_data <-
+  p_orderitems |> 
+  left_join(p_orders,"order_id")
+```
+
+Next lets look at reviews data. 
+
+```{r}
+names(p_reviews)
+```
+
+```{r}
+names(merged_data)
+```
+
+Again we can use order id.
+
+Can one order ID have multiple reviews? Yes. An order ID can have multiple items. Each item will have one review ID.
+
+```{r}
+p_reviews %>%
+  group_by(order_id) |> 
+    summarise(nrev = n_distinct(review_id)) |> 
+  ungroup() |> 
+  filter(nrev > 1) |> 
+  nrow()
+```
+
+So expect the merged data to grow in size when you merge this time.
+
+```{r}
+merged_data <-
+  p_orderitems |> 
+  left_join(p_orders,"order_id") |> 
+  left_join(p_reviews,"order_id") 
+```
+
+Lets move on to sellers, customers and products
+
+```{r}
+names(merged_data)
+```
+
+```{r}
+names(all_files[["sellers.csv"]])
+```
+
+We can use sellers ID
+Watch out for different names in different files
+
+```{r}
+merged_data <-
+  p_orderitems |> 
+  left_join(p_orders,"order_id") |> 
+  left_join(p_reviews,"order_id") |> 
+  left_join(all_files[["sellers.csv"]],c("seller_id" = "seller"))
+```
+
+Similarly customers and products
+
+```{r}
+merged_data <-
+  p_orderitems |> 
+  left_join(p_orders,"order_id") |> 
+  left_join(p_reviews,"order_id") |> 
+  left_join(all_files[["sellers.csv"]],c("seller_id" = "seller")) |> 
+  left_join(all_files[["customers.csv"]],"customer_id") |> 
+  left_join(all_files[["products.csv"]],"product_id")
+```
+
+Now we will apply pre processing on this merged data. This step is optional.
+
+One thing we need to adjust for is the presence of missing values. The other thing we want to do process variable names. 
+
+```{r}
+colSums(is.na(merged_data))
+```
+
+Suppose we wish to not deal with them. We can remove these entries. 
+
+The other option is imputation. But since majority of missing values are dates, we can avoid these entries.
+
+Also notice the few naming errors.
+
+```{r}
+p_merged_data <-
+  merged_data |> 
+    mutate(filter_rows = ifelse(is.na(order_delivered_customer_dt) &
+                                is.na(order_approved_at_dt) &
+                                is.na(product_category_name),1,0)) |> 
+    filter(filter_rows == 1)
+  
+  
+    filter(!is.na(order_delivered_customer_dt)) |> 
+    filter(!is.na(order_approved_at_dt)) |> 
+    filter(!is.na(product_category_name)) |> 
+    select(-review_comm_title,-review_comm_msg) |> 
+    rename("product_name_length" = "product_name_lenght",
+           "product_description_length" = "product_description_lenght") 
+
+colSums(is.na(p_merged_data))
+```
+
