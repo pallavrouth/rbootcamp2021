@@ -1,0 +1,131 @@
+---
+title: "Importing data"
+author: "Pallav Routh"
+date: "7/2/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,message = FALSE, warning = FALSE)
+```
+
+First lets save the path to the data sets
+
+```{r}
+path <- "/Users/pallavrouth/Dropbox/Teaching/R bootcamp/Olist Ecom Proj/"
+```
+
+Now lets list the names of all files in this
+
+```{r}
+list.files(path = path)
+```
+
+There are excel and csv format files. So, we will need to use the `readxl` and `read_csv` functions. Instead of writing out the calls to import one by one we can automate this process using a function.
+
+```{r}
+import_files <- function(x)
+  {
+    file_path <- paste0(path,x) #create path name to file
+    if (grepl("csv",x)) {return(readr::read_csv(file_path))} #avoids unnecessary function calls
+    else if (grepl("xlsx",x)) {return(readxl::read_excel(file_path))} 
+    else {return("different file path")}
+  }
+```
+
+We can now import all files using a loop and this function. Lets use the `lapply` function here.
+
+```{r}
+all_files <- lapply(list.files(path = path),
+                    import_files)
+```
+
+To make it easy to remember the file names lets name them
+
+```{r}
+names(all_files) <- list.files(path = path)
+```
+
+Lets view this object now. Fantastic. Quick and easy. You can use this framework when you have multiple files with different extensions. 
+
+Lets view the contents of any file. I find the `glimpse` function quite neat.
+
+```{r}
+glimpse(all_files[['orders.csv']])
+```
+
+It gives us the types of each variable in the data. This information will be useful to you later on for when it comes to pre processing. For example the date variables are listed as character variables. That's a mistake which needs to be fixed. 
+
+Next we will attempt the first level of preprocessing. We will aim to change the date variables from text to date. 
+
+This will require heavy data wrangling. Lets import the dplyr package -
+
+```{r}
+library(dplyr)
+library(lubridate)
+```
+
+Now lets change the type of the date. "10/2/17" - month/day/year
+
+```{r}
+p_orders <-
+  all_files[['orders.csv']] |> 
+  mutate(order_purchase_dt = as_date(order_purchase_dt, format = "%m/%d/%y"))
+
+glimpse(p_orders)
+```
+
+Automate this process using mutate_at
+
+```{r}
+p_orders <-
+  all_files[['orders.csv']] |> 
+  mutate_at(.vars = vars(order_purchase_dt:order_estimated_delivery_dt),
+            .funs = as_date,
+            format = "%m/%d/%y")
+
+glimpse(p_orders)
+```
+
+Alternatively, you can also target the nature of the variable and use the mutate_if function
+
+```{r}
+p_orders <-
+  all_files[['orders.csv']] |> 
+  mutate_if(.predicate = is.character,
+            .funs = as_date,
+            format = "%m/%d/%y")
+
+glimpse(p_orders)
+```
+
+Check if the other files have similar issues
+
+```{r}
+glimpse(all_files[['order_item.csv']])
+```
+
+Fix the data variable
+
+```{r}
+p_orderitems <-
+  all_files[['order_item.csv']] |> 
+  mutate(ship_lim_dt = as_date(ship_lim_dt, format = "%m/%d/%y"))
+
+glimpse(p_orderitems)
+```
+
+Keep checking
+
+```{r}
+glimpse(all_files[["customers.csv"]])
+glimpse(all_files[["products.csv"]])
+glimpse(all_files[["sellers.csv"]])
+glimpse(all_files[["reviews.csv"]])
+
+p_reviews <-
+  glimpse(all_files[["reviews.csv"]]) |> 
+  mutate(review_crt_dt = as_date(review_crt_dt, format = "%m/%d/%y"))
+```
+
+
