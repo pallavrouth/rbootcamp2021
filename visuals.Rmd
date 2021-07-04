@@ -1,0 +1,13 @@
+---
+title: "visualizations"
+author: "Pallav Routh"
+date: "7/4/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,message = FALSE, warning = FALSE)
+library(dplyr)
+library(ggplot2)
+```
+

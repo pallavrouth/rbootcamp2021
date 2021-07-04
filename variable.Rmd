@@ -147,3 +147,36 @@ p_merged_data |>
   ungroup()
 ```
 
+```{r}
+estimation_data <-
+  p_merged_data |> 
+  mutate(photos = case_when(product_photos_qty > 5 ~ "greater than 5",
+                            TRUE ~ as.character(product_photos_qty)),
+         description_quantile = cut(product_description_length,
+                                    breaks = my_breaks,
+                                    labels = c("25pct","50pct","75pct","100pct"),
+                                    include.lowest = T)) |> 
+  group_by(seller_id) |> 
+    mutate(customersize = n_distinct(customer_id),
+           productsize = n_distinct(product_id)) |> 
+  ungroup() |> 
+  group_by(seller_state) |> 
+    mutate(sellersize = n_distinct(seller_id)) |> 
+  ungroup() |> 
+  group_by(product_category_name) |> 
+    mutate(sellersize = n_distinct(seller_id)) |> 
+  ungroup() |> 
+  mutate(stateloc = case_when(customer_state %in% north ~ "north",
+                              customer_state %in% south ~ "south",
+                              TRUE ~ "others")) |> 
+  mutate(row_no = 1:n(),
+         indicator = 1) |> 
+  pivot_wider(names_from = stateloc, values_from = indicator, values_fill = 0) |> 
+  group_by(customer_state) |> 
+    mutate(avgrevscore = mean(review_score,na.rm = T)) |> 
+  ungroup() |> 
+  group_by(seller_id,product_category_name) |>
+    mutate(lagrevscore = lag(review_score)) |> 
+  ungroup()
+```
+
