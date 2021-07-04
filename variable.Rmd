@@ -14,36 +14,15 @@ Creation of variables
 
 1. Order related variables
 
-a. Order delivary time = delivary date - order date
-
-b. Order approval time = order date - approval date
-
 2. Product related variables
-
-a. Product dimensions - height, weight and width
-
-b. Product price - the price of the product
-
-c. Product photos - #photos of the product. 
 
 3. Seller specific
 
-a. Seller business size - the number of products the seller sells
-
-b. Seller competition in a state - the number of sellers within the same state
-
-c. Seller competition in category - the number of sellers within the same product category
-
 4. Customer specific
 
-a. Customer state location - which part of Brazil is the customer located. 
-North States: Acre (AC), Amapá (AP), Amazonas (AM), Pará (PA), Rondônia (RO), Roraima (RR), Tocantins (TO). South States: Espírito Santo (ES), Minas Gerais (MG), Rio de Janeiro (RJ), São Paulo (SP), Paraná (PR), Rio Grande do Sul (RS), Santa Catarina (SC)
+5. Other factors
 
-b. Customers propensity to provide scores in a region - how high do customers in a region usually rate products
 
-5. Other variables
-
-a. Review scores have some contagion - does review scores for a product on time t-1 have an impact on time t?
 
 
 1. Order related variables
@@ -66,16 +45,105 @@ a. Product dimensions - height, weight and width
 
 b. Product price - the price of the product
 
-c. Product photos - #photos of the product. 
+c. Product photos - #photos of the product. Here we want to limit the number of cases to under 5 or over 5. 
+
+d. product description length
+
+```{r}
+my_breaks <- quantile(p_merged_data$product_description_length, probs = c(0:4)/4)
+
+p_merged_data |> 
+  mutate(photos = case_when(product_photos_qty > 5 ~ "greater than 5",
+                            TRUE ~ as.character(product_photos_qty)),
+         description_quantile = cut(product_description_length,
+                                    breaks = my_breaks,
+                                    labels = c("25pct","50pct","75pct","100pct"),
+                                    include.lowest = T)) |> 
+  select(order_id,photos,description_quantile) |> 
+  group_by(description_quantile) |> 
+    tally()
+  
+```
+
+3. Seller specific
+
+a. Seller business size - the number of products the seller sells
+
+b. Seller competition in a state - the number of sellers within the same state
+
+c. Seller competition in category - the number of sellers within the same product category
+
+```{r}
+# seller business size
+p_merged_data |> 
+  group_by(seller_id) |> 
+    summarise(customersize = n_distinct(customer_id),
+              productsize = n_distinct(product_id)) |> 
+  ungroup()
+
+# seller competition in a state
+p_merged_data |> 
+  group_by(seller_state) |> 
+    summarise(sellersize = n_distinct(seller_id)) |> 
+  ungroup()
+
+# seller competition in category
+p_merged_data |> 
+  group_by(product_category_name) |> 
+    summarise(sellersize = n_distinct(seller_id)) |> 
+  ungroup()
+```
+
+4. Customer specific
+
+a. Customer state location - which part of Brazil is the customer located. 
+North States: Acre (AC), Amapá (AP), Amazonas (AM), Pará (PA), Rondônia (RO), Roraima (RR), Tocantins (TO). South States: Espírito Santo (ES), Minas Gerais (MG), Rio de Janeiro (RJ), São Paulo (SP), Paraná (PR), Rio Grande do Sul (RS), Santa Catarina (SC)
+
+b. Customers propensity to provide scores in a region - how high do customers in a region usually rate products
+
+```{r}
+north <- c("AC","AP","AM","PA","RO","RR","TO")
+south <- c("ES","MG","RJ","SP","PR","RS","SC")
+
+p_merged_data |> 
+  mutate(stateloc = case_when(customer_state %in% north ~ "north",
+                              customer_state %in% south ~ "south",
+                              TRUE ~ "others")) |> 
+  select(order_id,stateloc)
+
+
+# dummies for state location of customer reviews
+sjmisc::to_dummy(p_merged_data$stateloc)
+
+library(tidyr)
+
+p_merged_data |> 
+  mutate(stateloc = case_when(customer_state %in% north ~ "north",
+                              customer_state %in% south ~ "south",
+                              TRUE ~ "others")) |> 
+  select(stateloc) |> 
+  mutate(row_no = 1:n(),
+         indicator = 1) |> 
+  pivot_wider(names_from = stateloc, values_from = indicator, values_fill = 0)
+
+#customers propensity to provide scores in a region
+p_merged_data |>
+  group_by(customer_state) |> 
+    summarise(avgrevscore = mean(review_score,na.rm = T)) |> 
+  ungroup()
+```
+
+
+5. Other variables
+
+a. Review scores have some contagion - does review scores for a product on time t-1 have an impact on time t?
 
 ```{r}
 p_merged_data |> 
-  select(order_id,contains("product")) |> 
-  mutate(product_height_m = product_height_cm/1000,
-         product_weight_lb = product_weight_g/454,
-         product_length_m = product_length_cm/1000,
-         product_width_m = product_width_cm/1000,
-         photos = case_when(product_photos_qty > 5 ~ "greater than 5",
-                            TRUE ~ as.character(product_photos_qty)))
+  select(seller_id,product_category_name,order_approved_at_dt,review_score) |> 
+  arrange(seller_id,order_approved_at_dt) |> 
+  group_by(seller_id,product_category_name) |>
+    mutate(lagrevscore = lag(review_score)) |> 
+  ungroup()
 ```
 
