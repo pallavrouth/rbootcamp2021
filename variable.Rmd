@@ -1,0 +1,81 @@
+---
+title: "variables"
+author: "Pallav Routh"
+date: "7/2/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,message = FALSE, warning = FALSE)
+library(dplyr)
+```
+
+Creation of variables
+
+1. Order related variables
+
+a. Order delivary time = delivary date - order date
+
+b. Order approval time = order date - approval date
+
+2. Product related variables
+
+a. Product dimensions - height, weight and width
+
+b. Product price - the price of the product
+
+c. Product photos - #photos of the product. 
+
+3. Seller specific
+
+a. Seller business size - the number of products the seller sells
+
+b. Seller competition in a state - the number of sellers within the same state
+
+c. Seller competition in category - the number of sellers within the same product category
+
+4. Customer specific
+
+a. Customer state location - which part of Brazil is the customer located. 
+North States: Acre (AC), Amapá (AP), Amazonas (AM), Pará (PA), Rondônia (RO), Roraima (RR), Tocantins (TO). South States: Espírito Santo (ES), Minas Gerais (MG), Rio de Janeiro (RJ), São Paulo (SP), Paraná (PR), Rio Grande do Sul (RS), Santa Catarina (SC)
+
+b. Customers propensity to provide scores in a region - how high do customers in a region usually rate products
+
+5. Other variables
+
+a. Review scores have some contagion - does review scores for a product on time t-1 have an impact on time t?
+
+
+1. Order related variables
+
+a. Order delivary time = delivary date - order date
+
+b. Order approval time = order date - approval date
+
+```{r}
+p_merged_data |> 
+  mutate(delivary_time = order_delivered_customer_dt - order_purchase_dt,
+         est_delivary_time = order_estimated_delivery_dt - order_purchase_dt,
+         approval_time = order_approved_at_dt - order_purchase_dt) |> 
+  select(order_id,delivary_time,est_delivary_time,approval_time)
+```
+
+2. Product related variables
+
+a. Product dimensions - height, weight and width
+
+b. Product price - the price of the product
+
+c. Product photos - #photos of the product. 
+
+```{r}
+p_merged_data |> 
+  select(order_id,contains("product")) |> 
+  mutate(product_height_m = product_height_cm/1000,
+         product_weight_lb = product_weight_g/454,
+         product_length_m = product_length_cm/1000,
+         product_width_m = product_width_cm/1000,
+         photos = case_when(product_photos_qty > 5 ~ "greater than 5",
+                            TRUE ~ as.character(product_photos_qty)))
+```
+
