@@ -11,3 +11,138 @@ library(dplyr)
 library(ggplot2)
 ```
 
+Distributions, summary metrics and correlations
+
+Keep only variables you need
+
+```{r}
+estimation_data_f <-
+  estimation_data |> 
+  select(order_id,customer_id,seller_id,product_id,
+         price:fvalue,
+         product_category_name:product_width_cm,
+         photos:lagrevscore,
+         review_score,-sellersize)
+```
+
+
+```{r}
+colnames <- names(estimation_data)
+independent_variables <- colnames[!(colnames %in% c("seller_id","order_purchase_dt",
+                                                    "order_id","product_id"))]
+```
+
+Summary statistics
+
+```{r}
+estimation_data |> 
+  select(review_score:south) |> 
+  summary()
+```
+
+View distributions
+
+```{r}
+ggplot(estimation_data_f,aes(x = price)) +
+  geom_density(fill = "grey",col = "black")
+
+estimation_data_f |> 
+  ggplot(aes(x = price)) +
+  geom_density(fill = "grey",col = "black")
+
+estimation_data_f |> 
+  filter(price < 1000) |> 
+  ggplot(aes(x = price)) +
+  geom_density(fill = "grey",col = "black")
+
+estimation_data_f |> 
+  ggplot(aes(x = photos)) +
+  geom_bar(fill = "grey",col = "black")
+
+colnames <- names(estimation_data_f)
+independent_variables <- colnames[!(colnames %in% c("seller_id","order_purchase_dt",
+                                                    "order_id","product_id"))]
+
+
+plot_distribution <- function(x){
+  data_plot <- select(estimation_data_f,x)
+  if (sapply(data_plot,class) != "factor" |
+      sapply(data_plot,class) != "character"){
+    ggplot(data_plot,aes_string(x)) + geom_density(fill = "grey",col = "black")
+  } else {
+    ggplot(data_plot,aes_string(x)) + geom_bar(fill = "grey",col = "black")
+  }
+}
+
+for (i in seq_along(independent_variables)){
+  print(plot_distribution(independent_variables[i]))
+}
+```
+
+Correlations
+
+```{r}
+sapply(estimation_data,is.numeric) == TRUE
+estimation_data[,sapply(estimation_data,is.numeric) == TRUE]
+estimation_data[,sapply(estimation_data,is.numeric) == TRUE & colnames %in% independent_variables]
+cor(estimation_data[,sapply(estimation_data,is.numeric) == TRUE & colnames %in% independent_variables])
+
+estimation_data_f |> 
+  select(all_of(independent_variables)) |> 
+  select_if(.predicate = is.numeric) |> 
+  na.omit() |> 
+  cor()
+```
+
+DV - IV visualizations
+
+1. Scatter plots
+
+```{r}
+estimation_data |>
+  ggplot(aes(x = review_score, y = price)) +
+    geom_point()
+
+estimation_data |>
+  ggplot(aes(x = review_score, y = product_name_length)) +
+    geom_point()
+
+estimation_data |>
+  ggplot(aes(x = review_score, y = product_name_length)) +
+    geom_jitter(size = 0.1, alpha = 0.1)
+```
+
+Box plots
+
+```{r}
+estimation_data |>
+  ggplot(aes(x = review_score, y = product_name_length)) +
+    geom_boxplot()
+
+estimation_data |>
+  ggplot(aes(x = as.factor(review_score), y = product_name_length)) +
+    geom_boxplot()
+
+estimation_data |>
+  mutate(review_scoref = as.factor(review_score)) |> 
+  ggplot(aes(x = review_scoref, y = product_name_length)) +
+    geom_boxplot()
+```
+
+Facets
+
+```{r}
+estimation_data |>
+  mutate(review_scoref = as.factor(review_score)) |>
+  ggplot(aes(x = review_scoref, y = product_name_length)) +
+    geom_boxplot() +
+    facet_wrap(~photos) 
+
+estimation_data |>
+  mutate(review_scoref = as.factor(review_score)) |>
+  ggplot(aes(x = review_scoref, y = product_name_length)) +
+    geom_boxplot() +
+    facet_wrap(~photos) +
+    labs(x = )
+```
+
