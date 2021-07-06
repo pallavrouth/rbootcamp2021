@@ -32,11 +32,10 @@ a. Order delivary time = delivary date - order date
 b. Order approval time = order date - approval date
 
 ```{r}
-p_merged_data |> 
-  mutate(delivary_time = order_delivered_customer_dt - order_purchase_dt,
-         est_delivary_time = order_estimated_delivery_dt - order_purchase_dt,
-         approval_time = order_approved_at_dt - order_purchase_dt) |> 
-  select(order_id,delivary_time,est_delivary_time,approval_time)
+estimation_data <- 
+  p_merged_data |> 
+  mutate(del_time = order_delivered_customer_dt - order_purchase_dt,
+         app_time = order_approved_at_dt - order_purchase_dt)
 ```
 
 2. Product related variables
@@ -50,18 +49,21 @@ c. Product photos - #photos of the product. Here we want to limit the number of 
 d. product description length
 
 ```{r}
-my_breaks <- quantile(p_merged_data$product_description_length, probs = c(0:4)/4)
+table(p_merged_data$product_photos_qty)
+hist(p_merged_data$product_description_length)
+my_breaks <- quantile(p_merged_data$product_description_length,probs = c(0:4)/4)
 
-p_merged_data |> 
-  mutate(photos = case_when(product_photos_qty > 5 ~ "greater than 5",
-                            TRUE ~ as.character(product_photos_qty)),
-         description_quantile = cut(product_description_length,
-                                    breaks = my_breaks,
-                                    labels = c("25pct","50pct","75pct","100pct"),
-                                    include.lowest = T)) |> 
-  select(order_id,photos,description_quantile) |> 
-  group_by(description_quantile) |> 
-    tally()
+estimation_data <- 
+  p_merged_data |> 
+  mutate(del_time = order_delivered_customer_dt - order_purchase_dt,
+         app_time = order_approved_at_dt - order_purchase_dt,
+         photos = ifelse(product_photos_qty > 5,"greater than 5",product_photos_qty),
+         des_qntile = cut(product_description_length,
+                          breaks = my_breaks,
+                          labels = c("25pct","50pct","75pct","100pct"),
+                          include.lowest = T)) 
+
+table(estimation_data$des_qntile)
   
 ```
 
@@ -74,24 +76,28 @@ b. Seller competition in a state - the number of sellers within the same state
 c. Seller competition in category - the number of sellers within the same product category
 
 ```{r}
-# seller business size
-p_merged_data |> 
+estimation_data <- 
+  p_merged_data |> 
+  mutate(del_time = order_delivered_customer_dt - order_purchase_dt,
+         app_time = order_approved_at_dt - order_purchase_dt,
+         photos = ifelse(product_photos_qty > 5,"greater than 5",product_photos_qty),
+         des_qntile = cut(product_description_length,
+                          breaks = my_breaks,
+                          labels = c("25pct","50pct","75pct","100pct"),
+                          include.lowest = T)) |> 
   group_by(seller_id) |> 
-    summarise(customersize = n_distinct(customer_id),
-              productsize = n_distinct(product_id)) |> 
-  ungroup()
-
-# seller competition in a state
-p_merged_data |> 
+    mutate(cust_size = n_distinct(customer_id),
+           pdt_size = n_distinct(product_id)) |> 
+  ungroup() |> 
   group_by(seller_state) |> 
-    summarise(sellersize = n_distinct(seller_id)) |> 
+    mutate(sellersize1 = n_distinct(seller_id)) |> 
+  ungroup() |> 
+  group_by(product_category_name) |> 
+    mutate(sellersize2 = n_distinct(seller_id)) |> 
   ungroup()
 
-# seller competition in category
-p_merged_data |> 
-  group_by(product_category_name) |> 
-    summarise(sellersize = n_distinct(seller_id)) |> 
-  ungroup()
+estimation_data |> 
+  select(product_category_name,sellersize2)
 ```
 
 4. Customer specific
@@ -105,32 +111,62 @@ b. Customers propensity to provide scores in a region - how high do customers in
 north <- c("AC","AP","AM","PA","RO","RR","TO")
 south <- c("ES","MG","RJ","SP","PR","RS","SC")
 
-p_merged_data |> 
+estimation_data <- 
+  p_merged_data |> 
+  mutate(del_time = order_delivered_customer_dt - order_purchase_dt,
+         app_time = order_approved_at_dt - order_purchase_dt,
+         photos = ifelse(product_photos_qty > 5,"greater than 5",product_photos_qty),
+         des_qntile = cut(product_description_length,
+                          breaks = my_breaks,
+                          labels = c("25pct","50pct","75pct","100pct"),
+                          include.lowest = T)) |> 
+  group_by(seller_id) |> 
+    mutate(cust_size = n_distinct(customer_id),
+           pdt_size = n_distinct(product_id)) |> 
+  ungroup() |> 
+  group_by(seller_state) |> 
+    mutate(sellersize1 = n_distinct(seller_id)) |> 
+  ungroup() |> 
+  group_by(product_category_name) |> 
+    mutate(sellersize2 = n_distinct(seller_id)) |> 
+  ungroup() |> 
   mutate(stateloc = case_when(customer_state %in% north ~ "north",
                               customer_state %in% south ~ "south",
-                              TRUE ~ "others")) |> 
-  select(order_id,stateloc)
+                              TRUE ~ "other"))
+
+table(estimation_data$stateloc)
+```
 
 
-# dummies for state location of customer reviews
-sjmisc::to_dummy(p_merged_data$stateloc)
-
-library(tidyr)
-
-p_merged_data |> 
+```{r}
+estimation_data <- 
+  p_merged_data |> 
+  mutate(del_time = order_delivered_customer_dt - order_purchase_dt,
+         app_time = order_approved_at_dt - order_purchase_dt,
+         photos = ifelse(product_photos_qty > 5,"greater than 5",product_photos_qty),
+         des_qntile = cut(product_description_length,
+                          breaks = my_breaks,
+                          labels = c("25pct","50pct","75pct","100pct"),
+                          include.lowest = T)) |> 
+  group_by(seller_id) |> 
+    mutate(cust_size = n_distinct(customer_id),
+           pdt_size = n_distinct(product_id)) |> 
+  ungroup() |> 
+  group_by(seller_state) |> 
+    mutate(sellersize1 = n_distinct(seller_id)) |> 
+  ungroup() |> 
+  group_by(product_category_name) |> 
+    mutate(sellersize2 = n_distinct(seller_id)) |> 
+  ungroup() |> 
   mutate(stateloc = case_when(customer_state %in% north ~ "north",
                               customer_state %in% south ~ "south",
-                              TRUE ~ "others")) |> 
-  select(stateloc) |> 
-  mutate(row_no = 1:n(),
-         indicator = 1) |> 
-  pivot_wider(names_from = stateloc, values_from = indicator, values_fill = 0)
-
-#customers propensity to provide scores in a region
-p_merged_data |>
+                              TRUE ~ "other")) |> 
   group_by(customer_state) |> 
-    summarise(avgrevscore = mean(review_score,na.rm = T)) |> 
+    mutate(avg_rev_score = mean(review_score,na.rm = TRUE)) |> 
   ungroup()
+
+estimation_data |> 
+  select(customer_state,avg_rev_score)
 ```
 
 
@@ -140,43 +176,42 @@ a. Review scores have some contagion - does review scores for a product on time 
 
 ```{r}
 p_merged_data |> 
-  select(seller_id,product_category_name,order_approved_at_dt,review_score) |> 
-  arrange(seller_id,order_approved_at_dt) |> 
-  group_by(seller_id,product_category_name) |>
-    mutate(lagrevscore = lag(review_score)) |> 
-  ungroup()
-```
+  select(seller_id,order_approved_at_dt,product_category_name,review_score) |> 
+  arrange(seller_id,order_approved_at_dt)
 
-```{r}
-estimation_data <-
+estimation_data <- 
   p_merged_data |> 
-  mutate(photos = case_when(product_photos_qty > 5 ~ "greater than 5",
-                            TRUE ~ as.character(product_photos_qty)),
-         description_quantile = cut(product_description_length,
-                                    breaks = my_breaks,
-                                    labels = c("25pct","50pct","75pct","100pct"),
-                                    include.lowest = T)) |> 
+  mutate(del_time = order_delivered_customer_dt - order_purchase_dt,
+         app_time = order_approved_at_dt - order_purchase_dt,
+         photos = ifelse(product_photos_qty > 5,"greater than 5",product_photos_qty),
+         des_qntile = cut(product_description_length,
+                          breaks = my_breaks,
+                          labels = c("25pct","50pct","75pct","100pct"),
+                          include.lowest = T)) |> 
   group_by(seller_id) |> 
-    mutate(customersize = n_distinct(customer_id),
-           productsize = n_distinct(product_id)) |> 
+    mutate(cust_size = n_distinct(customer_id),
+           pdt_size = n_distinct(product_id)) |> 
   ungroup() |> 
   group_by(seller_state) |> 
-    mutate(sellersize = n_distinct(seller_id)) |> 
+    mutate(sellersize1 = n_distinct(seller_id)) |> 
   ungroup() |> 
   group_by(product_category_name) |> 
-    mutate(sellersize = n_distinct(seller_id)) |> 
+    mutate(sellersize2 = n_distinct(seller_id)) |> 
   ungroup() |> 
   mutate(stateloc = case_when(customer_state %in% north ~ "north",
                               customer_state %in% south ~ "south",
-                              TRUE ~ "others")) |> 
-  mutate(row_no = 1:n(),
-         indicator = 1) |> 
-  pivot_wider(names_from = stateloc, values_from = indicator, values_fill = 0) |> 
+                              TRUE ~ "other")) |> 
   group_by(customer_state) |> 
-    mutate(avgrevscore = mean(review_score,na.rm = T)) |> 
+    mutate(avg_rev_score = mean(review_score,na.rm = TRUE)) |> 
   ungroup() |> 
-  group_by(seller_id,product_category_name) |>
-    mutate(lagrevscore = lag(review_score)) |> 
+  arrange(seller_id,order_approved_at_dt) |> 
+  group_by(seller_id,product_category_name) |> 
+    mutate(lag_revscore = lag(review_score,1)) |> 
   ungroup()
+
+estimation_data |> 
+  select(seller_id,order_approved_at_dt,
+         product_category_name,review_score,lag_revscore) |> 
+  arrange(seller_id,order_approved_at_dt) 
 ```
 

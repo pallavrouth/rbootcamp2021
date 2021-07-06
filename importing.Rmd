@@ -24,26 +24,26 @@ list.files(path = path)
 There are excel and csv format files. So, we will need to use the `readxl` and `read_csv` functions. Instead of writing out the calls to import one by one we can automate this process using a function.
 
 ```{r}
-import_files <- function(x)
-  {
-    file_path <- paste0(path,x) #create path name to file
-    if (grepl("csv",x)) {return(readr::read_csv(file_path))} #avoids unnecessary function calls
-    else if (grepl("xlsx",x)) {return(readxl::read_excel(file_path))} 
-    else {return("different file path")}
+import_files <- function(x){
+  file_path <- paste0(path,x)
+  file_name <- unlist(strsplit(x,".",fixed = TRUE))[1]
+  if (grepl("csv",x)) {
+    imported_file <- readr::read_csv(file_path)
+    assign(file_name,imported_file,envir = .GlobalEnv)
+  } else if (grepl("xlsx",x)) {
+    imported_file <- readxl::read_excel(file_path)
+    assign(file_name,imported_file,envir = .GlobalEnv)
+  } else {
+    imported_file <- "this file is of a different extension"
+    assign(file_name,imported_file,envir = .GlobalEnv)
   }
+}
 ```
 
 We can now import all files using a loop and this function. Lets use the `lapply` function here.
 
 ```{r}
-all_files <- lapply(list.files(path = path),
-                    import_files)
-```
-
-To make it easy to remember the file names lets name them
-
-```{r}
-names(all_files) <- list.files(path = path)
+lapply(list.files(path = path),import_files)
 ```
 
 Lets view this object now. Fantastic. Quick and easy. You can use this framework when you have multiple files with different extensions. 
@@ -51,7 +51,7 @@ Lets view this object now. Fantastic. Quick and easy. You can use this framework
 Lets view the contents of any file. I find the `glimpse` function quite neat.
 
 ```{r}
-dplyr::glimpse(all_files[['orders.csv']])
+dplyr::glimpse(orders)
 ```
 
 It gives us the types of each variable in the data. This information will be useful to you later on for when it comes to pre processing. For example the date variables are listed as character variables. That's a mistake which needs to be fixed. 
@@ -65,12 +65,14 @@ library(dplyr)
 library(lubridate)
 ```
 
+Also change the delivered to factor
 Now lets change the type of the date. "10/2/17" - month/day/year
 
 ```{r}
 p_orders <-
-  all_files[['orders.csv']] |> 
-  mutate(order_purchase_dt = as_date(order_purchase_dt, format = "%m/%d/%y"))
+  orders |> 
+  mutate(order_status = as.factor(order_status),
+         order_purchase_dt = as_date(order_purchase_dt, format = "%m/%d/%y"))
 
 glimpse(p_orders)
 ```
@@ -79,7 +81,8 @@ Automate this process using mutate_at
 
 ```{r}
 p_orders <-
-  all_files[['orders.csv']] |> 
+  orders |> 
+  mutate(order_status = as.factor(order_status)) |> 
   mutate_at(.vars = vars(order_purchase_dt:order_estimated_delivery_dt),
             .funs = as_date,
             format = "%m/%d/%y")
@@ -91,7 +94,8 @@ Alternatively, you can also target the nature of the variable and use the mutate
 
 ```{r}
 p_orders <-
-  all_files[['orders.csv']] |> 
+  orders |> 
+  mutate(order_status = as.factor(order_status)) |> 
   mutate_if(.predicate = is.character,
             .funs = as_date,
             format = "%m/%d/%y")
@@ -102,14 +106,14 @@ glimpse(p_orders)
 Check if the other files have similar issues
 
 ```{r}
-glimpse(all_files[['order_item.csv']])
+glimpse(order_item)
 ```
 
 Fix the data variable
 
 ```{r}
 p_orderitems <-
-  all_files[['order_item.csv']] |> 
+  order_item |> 
   mutate(ship_lim_dt = as_date(ship_lim_dt, format = "%m/%d/%y"))
 
 glimpse(p_orderitems)
@@ -118,13 +122,13 @@ glimpse(p_orderitems)
 Keep checking
 
 ```{r}
-glimpse(all_files[["customers.csv"]])
-glimpse(all_files[["products.csv"]])
-glimpse(all_files[["sellers.csv"]])
-glimpse(all_files[["reviews.csv"]])
+glimpse(customers)
+glimpse(products)
+glimpse(sellers)
+glimpse(reviews)
 
 p_reviews <-
-  glimpse(all_files[["reviews.csv"]]) |> 
+  reviews |> 
   mutate(review_crt_dt = as_date(review_crt_dt, format = "%m/%d/%y"))
 ```
 

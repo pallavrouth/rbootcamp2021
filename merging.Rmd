@@ -28,25 +28,17 @@ names(p_orderitems)
 ```{r}
 names(p_orders)
 ```
+
 We can use order ID. We can join p_orderitems from the left of orders.
-
-Whenever left joining ask yourself - can multiple records exist for a single value of the key in the RHS data inspect. Typically check for any unique identifier type variable. For example can multiple customers exist for a single order ID? If yes, then the total number of rows after you join should go up. But this is likely false.
-
-```{r}
-p_orders |> 
-  filter(!is.na(order_id)) |> 
-  group_by(order_id) |> 
-    summarise(nobs = n_distinct(customer_id)) %>%
-  ungroup() |> 
-  filter(nobs > 1)
-```
-
-So then this merge shouldn't create additional rows. 
 
 ```{r}
 merged_data <-
   p_orderitems |> 
   left_join(p_orders,"order_id")
+```
+
+```{r}
+nrow(merged_data) == nrow(p_orderitems)
 ```
 
 Next lets look at reviews data. 
@@ -61,19 +53,6 @@ names(merged_data)
 
 Again we can use order id.
 
-Can one order ID have multiple reviews? Yes. An order ID can have multiple items. Each item will have one review ID.
-
-```{r}
-p_reviews %>%
-  group_by(order_id) |> 
-    summarise(nrev = n_distinct(review_id)) |> 
-  ungroup() |> 
-  filter(nrev > 1) |> 
-  nrow()
-```
-
-So expect the merged data to grow in size when you merge this time.
-
 ```{r}
 merged_data <-
   p_orderitems |> 
@@ -81,37 +60,64 @@ merged_data <-
   left_join(p_reviews,"order_id") 
 ```
 
-Lets move on to sellers, customers and products
+```{r}
+nrow(merged_data) == nrow(p_orderitems)
+```
+
+Why did it increase?
 
 ```{r}
+p_reviews |> 
+  filter(!is.na(order_id)) |> 
+  group_by(order_id) |> 
+    summarise(n_obs = n_distinct(review_id)) |> 
+  ungroup() |> 
+  filter(n_obs > 1)
+```
+
+Thats why it grew in size
+
+How can we automate this process?
+
+merged_data <-
+  p_orderitems |> 
+  left_join(p_orders,"order_id") |> 
+  left_join(p_reviews,"order_id") 
+  customers - customer id
+  sellers - seller_id
+  products - product_id
+
+```{r}
+names(customers)
+names(sellers)
+names(products)
+
 names(merged_data)
 ```
 
 ```{r}
-names(all_files[["sellers.csv"]])
-```
-
-We can use sellers ID
-Watch out for different names in different files
-
-```{r}
 merged_data <-
   p_orderitems |> 
   left_join(p_orders,"order_id") |> 
   left_join(p_reviews,"order_id") |> 
-  left_join(all_files[["sellers.csv"]],c("seller_id" = "seller"))
+  left_join(customers,"customer_id") |> 
+  left_join(sellers,"seller_id") |> 
+  left_join(products,"product_id")
 ```
 
-Similarly customers and products
 
 ```{r}
-merged_data <-
-  p_orderitems |> 
-  left_join(p_orders,"order_id") |> 
-  left_join(p_reviews,"order_id") |> 
-  left_join(all_files[["sellers.csv"]],c("seller_id" = "seller")) |> 
-  left_join(all_files[["customers.csv"]],"customer_id") |> 
-  left_join(all_files[["products.csv"]],"product_id")
+all_data <- list(p_orderitems,p_orders,p_reviews,customers,sellers,products)
+by_args <- c(rep("order_id",2),"customer_id","seller_id","product_id")
+
+merged_data <- reduce2(all_data,by_args,left_join)
+```
+
+
+Names
+
+```{r}
+names(merged_data)
 ```
 
 Now we will apply pre processing on this merged data. This step is optional.
@@ -130,7 +136,21 @@ p_merged_data <-
     mutate(filter_rows = ifelse(is.na(order_delivered_customer_dt) |
                                 is.na(order_approved_at_dt) |
                                 is.na(product_category_name),1,0)) |> 
-    filter(filter_rows == 0) |> 
+    filter(filter_rows == 0) 
+
+p_merged_data <-
+  merged_data |> 
+  filter_at(.vars = vars(order_delivered_customer_dt,
+                         order_approved_at_dt,
+                         product_category_name),
+            .vars_predicate = all_vars(!is.na(.)))
+
+p_merged_data <-
+    merged_data |> 
+    filter_at(.vars = vars(order_delivered_customer_dt,
+                         order_approved_at_dt,
+                         product_category_name),
+             .vars_predicate = all_vars(!is.na(.))) |> 
     select(-review_comm_title,-review_comm_msg) |> 
     rename("product_name_length" = "product_name_lenght",
            "product_description_length" = "product_description_lenght") 
