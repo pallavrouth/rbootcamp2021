@@ -137,6 +137,62 @@ estimation_data <-
 table(estimation_data$stateloc)
 ```
 
+But we want to save customer state as dummy variables
+
+```{r}
+estimation_data |> 
+  select(stateloc)  |> 
+  mutate(row_no = 1:n(),
+         indicator = 1) |> 
+  #by pivoting wider we are forcing R to create
+  #3 different column - north,couth and others - for every row
+  #when south pivots for row 1, it will have 1 but north
+  #and other are forced to have NA
+  #we will need a unique identifier for every row
+  #we need to tell R that this row is different from this row
+  tidyr::pivot_wider(names_from = stateloc,
+                     values_from = indicator,
+                     values_fill = 0)
+
+# if you wanted to create this the traditional way
+estimation_data |> 
+  select(stateloc)  |> 
+  mutate(row_no = 1:n(),
+         indicator = ifelse(stateloc == "other",0,1)) |> 
+  tidyr::pivot_wider(names_from = stateloc,
+                     values_from = indicator,
+                     values_fill = 0)
+
+estimation_data <- 
+  p_merged_data |> 
+  mutate(del_time = order_delivered_customer_dt - order_purchase_dt,
+         app_time = order_approved_at_dt - order_purchase_dt,
+         photos = ifelse(product_photos_qty > 5,"greater than 5",product_photos_qty),
+         des_qntile = cut(product_description_length,
+                          breaks = my_breaks,
+                          labels = c("25pct","50pct","75pct","100pct"),
+                          include.lowest = T)) |> 
+  group_by(seller_id) |> 
+    mutate(cust_size = n_distinct(customer_id),
+           pdt_size = n_distinct(product_id)) |> 
+  ungroup() |> 
+  group_by(seller_state) |> 
+    mutate(sellersize1 = n_distinct(seller_id)) |> 
+  ungroup() |> 
+  group_by(product_category_name) |> 
+    mutate(sellersize2 = n_distinct(seller_id)) |> 
+  ungroup() |> 
+  mutate(stateloc = case_when(customer_state %in% north ~ "north",
+                              customer_state %in% south ~ "south",
+                              TRUE ~ "other")) |> 
+  mutate(row_no = 1:n(),
+         indicator = ifelse(stateloc == "other",0,1)) |> 
+  tidyr::pivot_wider(names_from = stateloc,
+                     values_from = indicator,
+                     values_fill = 0)
+```
+
+avg review
 
 ```{r}
 estimation_data <- 
@@ -161,6 +217,11 @@ estimation_data <-
   mutate(stateloc = case_when(customer_state %in% north ~ "north",
                               customer_state %in% south ~ "south",
                               TRUE ~ "other")) |> 
+  mutate(row_no = 1:n(),
+         indicator = ifelse(stateloc == "other",0,1)) |> 
+  tidyr::pivot_wider(names_from = stateloc,
+                     values_from = indicator,
+                     values_fill = 0) |> 
   group_by(customer_state) |> 
     mutate(avg_rev_score = mean(review_score,na.rm = TRUE)) |> 
   ungroup()
@@ -201,6 +262,11 @@ estimation_data <-
   mutate(stateloc = case_when(customer_state %in% north ~ "north",
                               customer_state %in% south ~ "south",
                               TRUE ~ "other")) |> 
+  mutate(row_no = 1:n(),
+         indicator = ifelse(stateloc == "other",0,1)) |> 
+  tidyr::pivot_wider(names_from = stateloc,
+                     values_from = indicator,
+                     values_fill = 0) |> 
   group_by(customer_state) |> 
     mutate(avg_rev_score = mean(review_score,na.rm = TRUE)) |> 
   ungroup() |> 
@@ -214,4 +280,5 @@ estimation_data |>
          product_category_name,review_score,lag_revscore) |> 
   arrange(seller_id,order_approved_at_dt) 
 ```
+
 
