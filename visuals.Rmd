@@ -12,6 +12,7 @@ knitr::opts_chunk$set(echo = TRUE,message = FALSE, warning = FALSE)
 ```{r}
 library(dplyr)
 library(ggplot2)
+library(purrr)
 ```
 
 
@@ -39,9 +40,17 @@ View distributions
 ggplot(estimation_data_f,aes(x = price)) +
   geom_density(fill = "grey", col = "black")
 
+
 estimation_data_f |> 
   filter(price < 1000) |> 
   ggplot(aes(x = price)) +
+  geom_density(fill = "grey", col = "black")
+
+# maybe it makes sense to log it
+estimation_data_f |> 
+  filter(price < 1000) |> 
+  mutate(lnprice = log(price)) |> 
+  ggplot(aes(x = lnprice)) +
   geom_density(fill = "grey", col = "black")
 
 estimation_data_f |> 
@@ -49,15 +58,14 @@ estimation_data_f |>
     geom_bar(fill = "grey", col = "black")
 
 
-plot_distribution <- function(x){
-  data_plot <- select(estimation_data_f,x)
-  if (sapply(data_plot,class) != "factor" &
-      sapply(data_plot,class) != "character"){
-         ggplot(data_plot,aes_string(x)) +
-             geom_density(fill = "grey", col = "black")
+plot_distribution <- function(x,data){
+  data_plot <- select(data,x)
+  if (class(data_plot[[x]]) %in% c("character","factor")){
+      ggplot(data_plot,aes_string(x)) +
+             geom_bar(fill = "grey", col = "black")   
   } else {
-       ggplot(data_plot,aes_string(x)) +
-             geom_bar(fill = "grey", col = "black")
+      ggplot(data_plot,aes_string(x)) +
+             geom_density(fill = "grey", col = "black")
       }
 }
 
@@ -66,9 +74,7 @@ independent_variables <-
   select(price:avg_rev_score) |> 
   names()
 
-for (i in seq_along(independent_variables)){
-  print(plot_distribution(independent_variables[i]))
-}
+map(independent_variables,plot_distribution,estimation_data_f)
 ```
 
 Correlations
