@@ -1,0 +1,106 @@
+---
+title: "Advanced functions"
+author: "Pallav Routh"
+date: "7/24/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+```
+
+Using rowwise operations
+
+I want to compute the mean of 2 columns
+
+```{r}
+mtcars |> 
+  select(mpg,cyl) |>
+  mutate(m = mean(mpg,cyl))
+
+mtcars |> 
+  select(mpg,cyl) |> 
+  mutate(m = (mpg + cyl)/2)
+```
+
+
+
+```{r}
+mtcars %>%
+  select(mpg,cyl) |> 
+  rowwise() %>%
+  mutate(m = mean(c(mpg,cyl)))
+```
+
+Combine it with c_across()
+
+```{r}
+mtcars |> 
+  rowwise() |> 
+  mutate(means = mean(c_across(mpg:hp)))
+```
+
+Using columnwise operations
+
+```{r}
+mtcars |> 
+  group_by(cyl) |> 
+  summarise(mean_hp = mean(hp),
+            mean_drat = mean(drat),
+            mean_wt = mean(wt))
+```
+
+```{r}
+mtcars |> 
+  group_by(cyl) |> 
+  summarise(across(hp:wt,mean))
+```
+
+```{r}
+mtcars |> 
+  group_by(cyl) |> 
+  summarise(across(hp:wt,mean,.names = "mean_{.col}"))
+```
+
+```{r}
+mtcars |> 
+  group_by(cyl) |> 
+  summarise(mean_hp = mean(hp),
+            #median
+            mean_drat = mean(drat),
+            #median
+            mean_wt = mean(wt)
+            #median
+            )
+
+mtcars |> 
+  group_by(cyl) |> 
+  summarise(across(hp:wt,list(~mean(.),~median(.))))
+
+mtcars |> 
+  group_by(cyl) |> 
+  summarise(across(hp:wt,list(function(x)mean(x),function(x)median(x))))
+```
+
+```{r}
+mtcars |> 
+  group_by(cyl) |> 
+  summarise(across(hp:wt,list(mns = function(x)mean(x),
+                              meds = function(x)median(x)),
+                   .names = "{.fn}_{.col}"))
+```
+
+Automate selection process with where
+
+```{r}
+mtcars |> 
+  select(cyl,disp,hp) |> 
+  mutate(charcol = state.abb[1:32]) |> 
+  group_by(cyl) |> 
+  summarise(across(where(is.numeric),
+                   list(mns = function(x)mean(x),
+                        meds = function(x)median(x)),
+                   .names = "{.fn}_{.col}"))
+```
+
